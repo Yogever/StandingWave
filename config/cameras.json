@@ -1,0 +1,78 @@
+[
+  {
+    "id": "hilton-beach",
+    "name": "Hilton Beach",
+    "city": "Tel Aviv",
+    "note": "Yamit Marina",
+    "pageUrl": "https://opencctv.org/cameras/israel/tel-aviv/hilton-beach-yamit-marina-332854"
+  },
+  {
+    "id": "aviv-beach",
+    "name": "Aviv Beach",
+    "city": "Tel Aviv",
+    "note": "Dolfinarium",
+    "pageUrl": "https://opencctv.org/cameras/israel/tel-aviv/aviv-beach-dolfinarium-332855"
+  },
+  {
+    "id": "jaffa-beach",
+    "name": "Jaffa Beach",
+    "city": "Tel Aviv",
+    "pageUrl": "https://opencctv.org/cameras/israel/tel-aviv/jaffa-beach-332856"
+  },
+  {
+    "id": "banana-beach",
+    "name": "Banana Beach",
+    "city": "Tel Aviv",
+    "pageUrl": "https://opencctv.org/cameras/israel/tel-aviv-district/tel-aviv-yafo/banana-beach-tel-aviv-300664"
+  },
+  {
+    "id": "bat-galim",
+    "name": "Bat Galim Beach",
+    "city": "Haifa",
+    "pageUrl": "https://opencctv.org/cameras/israel/haifa/bat-galim-beach-332863"
+  },
+  {
+    "id": "backdoor-beach",
+    "name": "Backdoor Beach",
+    "city": "Haifa",
+    "pageUrl": "https://opencctv.org/cameras/israel/haifa/backdoor-beach-332864"
+  },
+  {
+    "id": "meridian-beach",
+    "name": "Meridian Beach",
+    "city": "Haifa",
+    "pageUrl": "https://opencctv.org/cameras/israel/haifa/meridian-beach-332865"
+  },
+  {
+    "id": "carmel-beach",
+    "name": "Carmel Beach",
+    "city": "Haifa",
+    "note": "coastal panorama",
+    "pageUrl": "https://opencctv.org/cameras/israel/haifa/carmel-beach-haifa-coastal-panorama-139086"
+  },
+  {
+    "id": "kiryat-haim",
+    "name": "Kiryat Haim Beach",
+    "city": "Haifa",
+    "pageUrl": "https://opencctv.org/cameras/israel/haifa/kiryat-haim-beach-369583"
+  },
+  {
+    "id": "argaman-beach",
+    "name": "Argaman Beach",
+    "city": "Acre",
+    "pageUrl": "https://opencctv.org/cameras/israel/north-district/acre/acre-south-argaman-beach-315816"
+  },
+  {
+    "id": "maagan-beach",
+    "name": "Maagan Beach",
+    "city": "Sea of Galilee",
+    "pageUrl": "https://opencctv.org/cameras/israel/tiberias/maagan-beach-sea-of-galilee-332869"
+  },
+  {
+    "id": "eilat-surf",
+    "name": "Eilat Surf Center",
+    "city": "Eilat",
+    "note": "windsurfing",
+    "pageUrl": "https://opencctv.org/cameras/israel/eilat/eilat-surf-center-windsurfing-action-139085"
+  }
+]

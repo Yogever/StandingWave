@@ -1,0 +1,17 @@
+{
+  "name": "standingwave",
+  "version": "0.1.0",
+  "description": "Watch live Israeli beach webcams and record them server-side",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ffmpeg": "^0.0.4"
+  }
+}

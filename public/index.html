@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StandingWave · Beach Cam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="wordmark">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 20 Q8 16 13 19 Q18 22 23 18 Q25 16.5 26 15" stroke="oklch(52% 0.18 200)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+        <path d="M9 17.5 L19 11" stroke="oklch(52% 0.18 200)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="15" y1="13.5" x2="14" y2="10.5" stroke="oklch(25% 0.025 240)" stroke-width="1.3" stroke-linecap="round"/>
+        <circle cx="14" cy="9.2" r="1.6" fill="oklch(25% 0.025 240)"/>
+        <path d="M14 11.5 L16.5 12.5" stroke="oklch(25% 0.025 240)" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="wordmark-name">Standing<span class="accent">Wave</span></div>
+        <div class="wordmark-sub">BEACH CAM</div>
+      </div>
+    </div>
+
+    <div class="camera-list">
+      <div class="section-label">Cameras</div>
+      <div id="cameraList"></div>
+    </div>
+
+    <div class="storage-panel">
+      <div class="storage-head">
+        <span class="storage-label">Storage</span>
+        <span class="storage-nums" id="storageNums">— / — GB</span>
+      </div>
+      <div class="storage-track"><div class="storage-fill" id="storageFill"></div></div>
+      <div class="storage-note" id="storageNote">Auto-delete after 30 days</div>
+      <div class="disclaimer">
+        Recordings are for personal / archival use. Source attribution is kept
+        with every file · feeds via <a href="https://opencctv.org" target="_blank" rel="noopener">opencctv.org</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="cam-title" id="camTitle">Select a camera</span>
+        <span class="cam-sep">·</span>
+        <span class="cam-city" id="camCity">—</span>
+        <div class="live-badge" id="liveBadge">
+          <div class="dot"></div>
+          <span>LIVE</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="feed-type">HLS · M3U8</span>
+        <button class="top-action" id="recheckBtn" title="Re-resolve the stream URL from opencctv">↻ RECHECK</button>
+        <button class="top-action" id="logoutBtn">LOGOUT</button>
+      </div>
+    </div>
+
+    <div class="video-area">
+      <video id="player" class="hidden" muted playsinline controls></video>
+      <div class="video-placeholder" id="placeholder">
+        <svg width="52" height="52" viewBox="0 0 48 48" fill="none">
+          <rect x="4" y="10" width="28" height="28" rx="3" stroke="white" stroke-width="1.5"/>
+          <path d="M32 19l12-7v24l-12-7V19z" stroke="white" stroke-width="1.5"/>
+        </svg>
+        <div class="video-placeholder-text" id="placeholderText">select a camera</div>
+      </div>
+    </div>
+
+    <div class="record-bar">
+      <button class="record-btn" id="recordBtn" disabled>
+        <div class="btn-dot"></div>
+        <span id="recordBtnLabel">Start Recording</span>
+      </button>
+      <div>
+        <div class="timer" id="timer">00:00:00</div>
+        <div class="timer-sub" id="timerSub">idle · server-side · max 4h</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/vendor/hls.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
