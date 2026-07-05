@@ -68,6 +68,26 @@ body {
   text-transform: uppercase;
 }
 
+.city-filter { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 20px 10px; }
+.city-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.city-chip:hover { color: var(--ink-mid); }
+.city-chip.on {
+  color: var(--accent-badge-ink);
+  background: var(--accent-badge-bg);
+  border-color: transparent;
+}
+
 .camera-item { padding: 9px 20px; cursor: pointer; border-left: 2px solid transparent; }
 .camera-item:hover { background: oklch(94.5% 0.013 65); }
 .camera-item.active { background: var(--bg); border-left-color: var(--accent); }

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { config, RECORDINGS_DIR, STATE_FILE } from './config.js';
+import { config, RECORDINGS_DIR, STATE_FILE, INTERNAL_TOKEN } from './config.js';
 
 // Server-side recording engine.
 //
@@ -15,6 +15,18 @@ import { config, RECORDINGS_DIR, STATE_FILE } from './config.js';
 const RETRY_DELAY_MS = 5000;
 const RETRY_WINDOW_MS = 3 * 60 * 1000; // give a dropped source 3 minutes to come back
 const STOP_GRACE_MS = 10000;
+
+// Wavehub streams need cookie handling, so ffmpeg records them through our
+// own HLS proxy; other providers are plain public m3u8 URLs.
+function ffmpegInput(camera) {
+  if (camera.provider === 'wavehub') {
+    return {
+      url: `http://127.0.0.1:${config.port}/hls/${encodeURIComponent(camera.id)}/index.m3u8`,
+      headers: `X-StandingWave-Internal: ${INTERNAL_TOKEN}\r\n`,
+    };
+  }
+  return { url: camera.streamUrl, headers: null };
+}
 
 function tsStamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -78,11 +90,13 @@ export class Recorder {
     );
     job.segments.push(segPath);
 
+    const input = ffmpegInput(job.camera);
     const args = [
       '-hide_banner', '-loglevel', 'warning',
       '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '15',
       '-rw_timeout', '20000000',
-      '-i', job.camera.streamUrl,
+      ...(input.headers ? ['-headers', input.headers] : []),
+      '-i', input.url,
       '-c', 'copy',
       '-f', 'mpegts',
       segPath,
@@ -297,6 +311,14 @@ async function finalizeSegments(base, segments, meta) {
   return writeMeta(finalPath, base, meta);
 }
 
+function sourceHost(camera) {
+  try {
+    return new URL(camera.pageUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return 'unknown';
+  }
+}
+
 function writeMeta(filePath, base, meta) {
   const stat = fs.statSync(filePath);
   const endedAt = new Date().toISOString();
@@ -306,7 +328,7 @@ function writeMeta(filePath, base, meta) {
     city: meta.camera.city,
     cameraId: meta.camera.id,
     // Attribution kept with every saved file (see README legal note).
-    source: 'opencctv.org',
+    source: sourceHost(meta.camera),
     sourcePage: meta.camera.pageUrl,
     startedAt: meta.startedAt,
     endedAt,

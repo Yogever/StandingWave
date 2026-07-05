@@ -1,5 +1,63 @@
 [
   {
+    "id": "dromi",
+    "name": "Dromi Beach",
+    "city": "Herzliya",
+    "note": "south Herzliya",
+    "provider": "wavehub",
+    "source": "Dromi_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/dromi"
+  },
+  {
+    "id": "dromi-beachcam",
+    "name": "Dromi Beach",
+    "city": "Herzliya",
+    "note": "alt angle · beachcam",
+    "provider": "ipcamlive",
+    "alias": "6994cb060b270",
+    "pageUrl": "https://beachcam.co.il/dromi2.html"
+  },
+  {
+    "id": "zvulun",
+    "name": "Zvulun Beach",
+    "city": "Herzliya",
+    "provider": "wavehub",
+    "source": "Zvulun_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/zvulun"
+  },
+  {
+    "id": "marina-herzliya",
+    "name": "Marina Beach",
+    "city": "Herzliya",
+    "provider": "wavehub",
+    "source": "Marina_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/marina"
+  },
+  {
+    "id": "hilton-a",
+    "name": "Hilton A",
+    "city": "Tel Aviv",
+    "provider": "wavehub",
+    "source": "HiltonA_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/hilton-a"
+  },
+  {
+    "id": "hilton-b",
+    "name": "Hilton B",
+    "city": "Tel Aviv",
+    "provider": "wavehub",
+    "source": "HiltonB_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/hilton-b"
+  },
+  {
+    "id": "maaravi",
+    "name": "Ma'aravi Beach",
+    "city": "Tel Aviv",
+    "provider": "wavehub",
+    "source": "Shenkar_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/ma-aravi"
+  },
+  {
     "id": "hilton-beach",
     "name": "Hilton Beach",
     "city": "Tel Aviv",
@@ -24,6 +82,22 @@
     "name": "Banana Beach",
     "city": "Tel Aviv",
     "pageUrl": "https://opencctv.org/cameras/israel/tel-aviv-district/tel-aviv-yafo/banana-beach-tel-aviv-300664"
+  },
+  {
+    "id": "poleg",
+    "name": "Poleg Beach",
+    "city": "Netanya",
+    "provider": "wavehub",
+    "source": "Poleg_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/poleg"
+  },
+  {
+    "id": "manau",
+    "name": "Manau Beach",
+    "city": "Havatzelet HaSharon",
+    "provider": "wavehub",
+    "source": "Manau_HD",
+    "pageUrl": "https://www.wavehub.co.il/beaches/manau"
   },
   {
     "id": "bat-galim",

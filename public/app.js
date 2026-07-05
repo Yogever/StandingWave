@@ -2,13 +2,32 @@
 
 const $ = (id) => document.getElementById(id);
 
+// Cities shown in the sidebar by default; the rest hide behind their chips.
+const DEFAULT_CITIES = ['Tel Aviv', 'Herzliya'];
+const CITY_FILTER_KEY = 'sw.visibleCities';
+
+function loadVisibleCities() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CITY_FILTER_KEY));
+    if (Array.isArray(saved) && saved.length) return new Set(saved);
+  } catch {
+    /* fall through to default */
+  }
+  return new Set(DEFAULT_CITIES);
+}
+
 const state = {
   cameras: [],
   selectedId: null,
   active: [], // active recordings from the server
   hls: null,
   maxHours: 4,
+  visibleCities: loadVisibleCities(),
 };
+
+function visibleCameras() {
+  return state.cameras.filter((c) => state.visibleCities.has(c.city));
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -26,10 +45,29 @@ async function api(path, opts = {}) {
 
 /* ── Sidebar ── */
 
+function renderCityFilter() {
+  const box = $('cityFilter');
+  box.innerHTML = '';
+  const cities = [...new Set(state.cameras.map((c) => c.city))];
+  for (const city of cities) {
+    const chip = document.createElement('button');
+    chip.className = 'city-chip' + (state.visibleCities.has(city) ? ' on' : '');
+    chip.textContent = city;
+    chip.addEventListener('click', () => {
+      if (state.visibleCities.has(city)) state.visibleCities.delete(city);
+      else state.visibleCities.add(city);
+      localStorage.setItem(CITY_FILTER_KEY, JSON.stringify([...state.visibleCities]));
+      renderCityFilter();
+      renderCameraList();
+    });
+    box.appendChild(chip);
+  }
+}
+
 function renderCameraList() {
   const list = $('cameraList');
   list.innerHTML = '';
-  for (const cam of state.cameras) {
+  for (const cam of visibleCameras()) {
     const item = document.createElement('div');
     item.className = 'camera-item';
     if (cam.id === state.selectedId) item.classList.add('active');
@@ -87,10 +125,11 @@ function startPlayback(cam) {
     $('placeholder').style.display = 'none';
     $('liveBadge').classList.add('on');
   };
+  const src = cam.playUrl || cam.streamUrl;
   if (window.Hls && Hls.isSupported()) {
     const hls = new Hls({ liveDurationInfinity: true });
     state.hls = hls;
-    hls.loadSource(cam.streamUrl);
+    hls.loadSource(src);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       video.play().catch(() => {});
@@ -103,7 +142,7 @@ function startPlayback(cam) {
       }
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = cam.streamUrl;
+    video.src = src;
     video.play().catch(() => {});
     showVideo();
   } else {
@@ -300,10 +339,12 @@ $('logoutBtn').addEventListener('click', async () => {
 async function init() {
   await refreshActive().catch(() => {});
   await refreshCameras();
+  renderCityFilter();
   await refreshStorage().catch(() => {});
 
-  // Default selection: first live camera, else first camera.
-  const first = state.cameras.find((c) => c.status === 'live') || state.cameras[0];
+  // Default selection: first visible live camera, else first visible camera.
+  const visible = visibleCameras();
+  const first = visible.find((c) => c.status === 'live') || visible[0] || state.cameras[0];
   if (first) selectCamera(first.id);
 
   setInterval(() => refreshActive().catch(() => {}), 2000);

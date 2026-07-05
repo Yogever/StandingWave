@@ -28,6 +28,7 @@
 
     <div class="camera-list">
       <div class="section-label">Cameras</div>
+      <div class="city-filter" id="cityFilter"></div>
       <div id="cameraList"></div>
     </div>
 
@@ -40,7 +41,9 @@
       <div class="storage-note" id="storageNote">Auto-delete after 30 days</div>
       <div class="disclaimer">
         Recordings are for personal / archival use. Source attribution is kept
-        with every file · feeds via <a href="https://opencctv.org" target="_blank" rel="noopener">opencctv.org</a>
+        with every file · feeds via <a href="https://opencctv.org" target="_blank" rel="noopener">opencctv.org</a>,
+        <a href="https://www.wavehub.co.il" target="_blank" rel="noopener">wavehub.co.il</a> &amp;
+        <a href="https://beachcam.co.il" target="_blank" rel="noopener">beachcam.co.il</a>
       </div>
     </div>
   </aside>
@@ -58,7 +61,7 @@
       </div>
       <div class="topbar-right">
         <span class="feed-type">HLS · M3U8</span>
-        <button class="top-action" id="recheckBtn" title="Re-resolve the stream URL from opencctv">↻ RECHECK</button>
+        <button class="top-action" id="recheckBtn" title="Re-resolve the stream URL from its source">↻ RECHECK</button>
         <button class="top-action" id="logoutBtn">LOGOUT</button>
       </div>
     </div>

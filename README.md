@@ -4,9 +4,11 @@ A tiny self-hosted web app for watching live Israeli beach webcams and saving
 recordings on demand. Single user, password-protected, records **server-side**
 (closing the browser tab does not stop a recording).
 
-Live feeds are sourced from [opencctv.org](https://opencctv.org), a directory
-of publicly viewable webcams. The actual video comes from third-party stream
-hosts (mostly `ipcamlive.com`).
+Live feeds are sourced from three places: [opencctv.org](https://opencctv.org)
+(a directory of publicly viewable webcams; actual video mostly on
+`ipcamlive.com`), [wavehub.co.il](https://www.wavehub.co.il) (surf-cam platform
+with its own HLS infrastructure), and [beachcam.co.il](https://beachcam.co.il)
+(ipcamlive embeds).
 
 ## How it works
 
@@ -19,15 +21,26 @@ browser ──login──▶ Express server ──spawns──▶ ffmpeg (one pe
 ```
 
 - **Camera list** — seeded from [`config/cameras.json`](config/cameras.json)
-  (name, city, opencctv page URL). At runtime the server scrapes each camera's
-  opencctv page for the current `.m3u8` stream URL and caches it in
-  `data/cameras.json`. Stream URLs go stale; a health sweep re-checks every
-  15 minutes, and any failure triggers a re-resolve from the camera page.
-  There is also a "↻ recheck" button in the UI. To add/remove a camera, edit
-  the seed file and restart.
-- **Live preview** — the browser plays the HLS stream directly from the source
-  host via hls.js (the hosts send permissive CORS headers, so no proxy is
-  needed).
+  (name, city, provider, page URL). At runtime the server resolves each
+  camera's current `.m3u8` URL per provider and caches it in
+  `data/cameras.json`:
+  - `opencctv` (default): scrape the camera page for a literal m3u8 URL.
+  - `ipcamlive` (beachcam.co.il cams): read stream host + id from the
+    ipcamlive player page for the configured `alias`.
+  - `wavehub`: ask wavehub's own `secure-hls-url` API for a signed URL
+    (expires after ~1 h; re-resolved automatically).
+
+  Stream URLs go stale; a health sweep re-checks every 15 minutes, and any
+  failure triggers a re-resolve. There is also a "↻ recheck" button in the UI.
+  To add/remove a camera, edit the seed file and restart.
+- **Live preview** — the browser plays HLS via hls.js. opencctv/ipcamlive
+  hosts send `Access-Control-Allow-Origin: *`, so those play directly from the
+  source. Wavehub pins CORS to its own origin and requires per-session
+  cookies, so those cameras play (and record) through a small HLS proxy at
+  `/hls/:id/*` that keeps a per-camera cookie jar and refreshes expired signed
+  URLs on the fly.
+- **City filter** — sidebar chips filter cameras by city; only Tel Aviv and
+  Herzliya are shown by default (persisted in localStorage).
 - **Recording** — the server spawns `ffmpeg -i <m3u8> -c copy` writing a
   crash-safe MPEG-TS file. If the source drops, it retries for up to 3 minutes
   and continues into a new segment; on stop, segments are concatenated and
@@ -36,8 +49,8 @@ browser ──login──▶ Express server ──spawns──▶ ffmpeg (one pe
   If the server restarts mid-recording, the captured footage is salvaged into
   a finished file on boot.
 - **Recordings on disk** — `data/recordings/<camera>_<timestamp>.mp4`, each
-  with a `.json` sidecar carrying attribution (camera name, city, opencctv
-  page URL), start/end time, duration, and size. When you stop a recording the
+  with a `.json` sidecar carrying attribution (camera name, city, source site
+  and page URL), start/end time, duration, and size. When you stop a recording the
   UI shows a toast with a direct download link (`/recordings/<file>`, login
   required). There is deliberately no recordings-library UI.
 - **Retention** — an hourly sweep deletes recordings older than
@@ -112,22 +125,29 @@ the least-effort path) — the login password travels in the request body.
   2026-07-03); the app scrapes only those pages, with an honest User-Agent and
   ~1.5 s spacing between requests, and does not touch their internal `/api/`
   endpoints (which robots.txt disallows).
+- wavehub.co.il's `robots.txt` allows everything except private/auth pages
+  (checked 2026-07-05); the app calls the same `secure-hls-url` endpoint their
+  own player uses, one camera at a time. beachcam.co.il's robots.txt allows
+  everything except `/cgi-bin/`.
 - These streams are *publicly viewable*, not public domain. Footage belongs to
   whoever operates each camera. Recordings are for personal/archival use;
-  attribution (camera name + opencctv page) is stored in each recording's
+  attribution (camera name + source page) is stored in each recording's
   `.json` sidecar and a disclaimer is shown in the UI. If a camera operator
   asks for removal, delete its entry from `config/cameras.json` — mirroring
   courtesy of opencctv's own removal-request policy.
 
 ## Assumptions to revisit
 
-- Camera pages embed the `.m3u8` URL directly in server-rendered HTML (true as
-  of 2026-07-03; if opencctv moves to client-side rendering the resolver's
-  regex will stop matching).
-- Stream hosts send `Access-Control-Allow-Origin: *` and need no Referer, so
-  the browser plays them directly. If a source starts requiring headers, the
-  preview would need a small HLS proxy through the backend (recording via
-  ffmpeg would still work).
+- opencctv camera pages embed the `.m3u8` URL directly in server-rendered HTML
+  (true as of 2026-07-03; if opencctv moves to client-side rendering the
+  resolver's regex will stop matching). The ipcamlive resolver similarly
+  depends on `var address = '...'` / `var streamid = '...'` in the player page
+  (true as of 2026-07-05).
+- opencctv/ipcamlive stream hosts send `Access-Control-Allow-Origin: *` and
+  need no Referer, so the browser plays them directly. Wavehub already
+  requires the cookie/proxy path described above; if its `secure-hls-url` API
+  or cookie scheme changes, `resolveWavehub`/`wavehubFetch` in
+  `server/cameras.js` are the places to fix.
 - Some directory entries don't expose an m3u8 at all (e.g. Banana Beach) —
   they'll simply show as offline in the sidebar.
 - The design mock listed "Gordon Beach" and "Frishman Beach"; those don't

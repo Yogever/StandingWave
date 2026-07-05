@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
-import { config, ROOT_DIR, RECORDINGS_DIR, ensureDataDirs } from './config.js';
+import { Readable } from 'node:stream';
+import { config, ROOT_DIR, RECORDINGS_DIR, INTERNAL_TOKEN, ensureDataDirs } from './config.js';
 import {
   isAuthenticated,
   makeSessionCookie,
@@ -65,17 +66,65 @@ app.post('/api/logout', (_req, res) => {
 // ── Auth gate for everything else ──
 app.use((req, res, next) => {
   if (isAuthenticated(req)) return next();
+  // In-process ffmpeg recording through the local HLS proxy.
+  if (req.headers['x-standingwave-internal'] === INTERNAL_TOKEN) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'unauthorized' });
   return res.redirect('/login');
 });
 
 app.use(express.static(PUBLIC_DIR));
 
+// Browser-facing playback URL. Wavehub's CDN pins CORS to wavehub.co.il and
+// wants per-session cookies, so those cameras play through our HLS proxy;
+// everything else is fetched by hls.js straight from the source.
+function playUrlFor(camera) {
+  if (camera.provider === 'wavehub' && camera.streamUrl) {
+    return `/hls/${encodeURIComponent(camera.id)}/index.m3u8`;
+  }
+  return camera.streamUrl;
+}
+
+// ── HLS proxy for wavehub cameras ──
+// Playlists reference variants/segments relatively, so the browser and ffmpeg
+// come back to /hls/:id/<file> and we map that onto the signed upstream URL.
+app.get('/hls/:id/:file', async (req, res) => {
+  const camera = cameraStore.get(req.params.id);
+  if (!camera || camera.provider !== 'wavehub') {
+    return res.status(404).json({ error: 'unknown camera' });
+  }
+  const fetchUpstream = () => {
+    if (req.params.file === 'index.m3u8') {
+      return cameraStore.wavehubFetch(camera, camera.streamUrl);
+    }
+    const base = camera.streamUrl.slice(0, camera.streamUrl.lastIndexOf('/') + 1);
+    const query = req.originalUrl.split('?')[1];
+    return cameraStore.wavehubFetch(camera, base + req.params.file + (query ? `?${query}` : ''));
+  };
+  try {
+    if (!camera.streamUrl) await cameraStore.resolve(camera);
+    let upstream = await fetchUpstream();
+    if ([401, 403].includes(upstream.status) && req.params.file === 'index.m3u8') {
+      // Signed URL expired — refresh it once and retry.
+      await cameraStore.resolve(camera);
+      upstream = await fetchUpstream();
+    }
+    res.status(upstream.status);
+    const type = upstream.headers.get('content-type');
+    if (type) res.setHeader('Content-Type', type);
+    res.setHeader('Cache-Control', 'no-store');
+    if (!upstream.body) return res.end();
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // ── API ──
 app.get('/api/cameras', (_req, res) => {
   res.json(
     cameraStore.list().map((c) => ({
       ...c,
+      playUrl: playUrlFor(c),
       recording: recorder.active.has(c.id),
     })),
   );
@@ -86,7 +135,7 @@ app.post('/api/cameras/:id/resolve', async (req, res) => {
   if (!camera) return res.status(404).json({ error: 'unknown camera' });
   try {
     await cameraStore.ensureLive(camera);
-    res.json(camera);
+    res.json({ ...camera, playUrl: playUrlFor(camera) });
   } catch (err) {
     res.status(502).json({ error: err.message, camera });
   }

@@ -7,9 +7,15 @@ import { config, CAMERAS_FILE, SEED_CAMERAS_FILE } from './config.js';
 const M3U8_RE = /https:\/\/[^"'\s<>\\]+\.m3u8[^"'\s<>\\]*/;
 const HEALTH_INTERVAL_MS = 15 * 60 * 1000;
 
+const WAVEHUB_URL_API = 'https://www.wavehub.co.il/api/secure-hls-url';
+const IPCAMLIVE_PLAYER = 'https://g1.ipcamlive.com/player/player.php';
+
 export class CameraStore {
   constructor() {
     this.cameras = [];
+    // Per-camera cookie jars for wavehub (cookieCheck + hlsSession cookies).
+    // Kept out of the camera objects so they never hit data/cameras.json.
+    this.jars = new Map();
   }
 
   load() {
@@ -47,29 +53,101 @@ export class CameraStore {
     return this.cameras.find((c) => c.id === id) || null;
   }
 
-  /** Re-scrape the opencctv camera page for the current .m3u8 URL. */
+  /** Re-resolve the camera's current .m3u8 URL from its provider. */
   async resolve(camera) {
-    const res = await fetch(camera.pageUrl, {
-      headers: { 'User-Agent': config.scrapeUserAgent },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`camera page returned HTTP ${res.status}`);
-    const html = await res.text();
-    const match = html.match(M3U8_RE);
-    camera.streamUrl = match ? match[0] : null;
+    if (camera.provider === 'wavehub') {
+      camera.streamUrl = await this.resolveWavehub(camera);
+    } else if (camera.provider === 'ipcamlive') {
+      camera.streamUrl = await this.resolveIpcamlive(camera);
+    } else {
+      camera.streamUrl = await this.resolveOpencctv(camera);
+    }
     camera.lastVerified = new Date().toISOString();
     if (!camera.streamUrl) camera.status = 'offline';
     this.save();
     return camera;
   }
 
+  /** Scrape the opencctv camera page for a literal .m3u8 URL. */
+  async resolveOpencctv(camera) {
+    const res = await fetch(camera.pageUrl, {
+      headers: { 'User-Agent': config.scrapeUserAgent },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`camera page returned HTTP ${res.status}`);
+    const html = await res.text();
+    return html.match(M3U8_RE)?.[0] ?? null;
+  }
+
+  /** Ask wavehub's own frontend API for a signed (short-lived) HLS URL. */
+  async resolveWavehub(camera) {
+    const res = await fetch(`${WAVEHUB_URL_API}?path=${encodeURIComponent(camera.source)}`, {
+      headers: { 'User-Agent': config.scrapeUserAgent },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`wavehub URL API returned HTTP ${res.status}`);
+    const { hlsUrl } = await res.json();
+    // New signature means the old HLS session is stale — start a fresh jar.
+    this.jars.delete(camera.id);
+    return hlsUrl || null;
+  }
+
+  /** Read stream host + id out of the ipcamlive player page for our alias. */
+  async resolveIpcamlive(camera) {
+    const res = await fetch(`${IPCAMLIVE_PLAYER}?alias=${encodeURIComponent(camera.alias)}`, {
+      headers: { 'User-Agent': config.scrapeUserAgent },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`ipcamlive player returned HTTP ${res.status}`);
+    const html = await res.text();
+    const address = html.match(/var address = '([^']+)'/)?.[1];
+    const streamid = html.match(/var streamid = '([^']+)'/)?.[1];
+    if (!address || !streamid) return null;
+    return `${address.replace(/^http:/, 'https:')}streams/${streamid}/stream.m3u8`;
+  }
+
+  /**
+   * Fetch a wavehub URL with the camera's cookie jar. Their CDN answers the
+   * first request with a cookie-check redirect and issues an hlsSession
+   * cookie on the master playlist that segments require.
+   */
+  async wavehubFetch(camera, url) {
+    const jar = this.jars.get(camera.id) || new Map();
+    this.jars.set(camera.id, jar);
+    let target = url;
+    for (let hop = 0; hop < 5; hop++) {
+      const headers = { 'User-Agent': config.scrapeUserAgent };
+      if (jar.size) headers.Cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+      const res = await fetch(target, {
+        headers,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(20000),
+      });
+      for (const line of res.headers.getSetCookie()) {
+        const pair = line.split(';', 1)[0];
+        const i = pair.indexOf('=');
+        if (i > 0) jar.set(pair.slice(0, i).trim(), pair.slice(i + 1).trim());
+      }
+      const location = res.headers.get('location');
+      if (res.status >= 300 && res.status < 400 && location) {
+        target = new URL(location, target).href;
+        continue;
+      }
+      return res;
+    }
+    throw new Error('too many redirects from wavehub');
+  }
+
   /** Check that the camera's HLS playlist responds. */
   async checkHealth(camera) {
     if (!camera.streamUrl) return false;
     try {
-      const res = await fetch(camera.streamUrl, {
-        signal: AbortSignal.timeout(12000),
-      });
+      const res =
+        camera.provider === 'wavehub'
+          ? await this.wavehubFetch(camera, camera.streamUrl)
+          : await fetch(camera.streamUrl, {
+              signal: AbortSignal.timeout(12000),
+            });
       // Read a little of the body so we know it is a real playlist.
       const text = res.ok ? (await res.text()).slice(0, 64) : '';
       return res.ok && text.includes('#EXTM3U');
@@ -107,7 +185,13 @@ export class CameraStore {
       for (const camera of this.cameras) {
         try {
           if (!camera.streamUrl) await this.resolve(camera);
-          camera.status = (await this.checkHealth(camera)) ? 'live' : 'offline';
+          let ok = await this.checkHealth(camera);
+          if (!ok) {
+            // Stale URL (wavehub signatures expire hourly) — re-resolve once.
+            await this.resolve(camera);
+            ok = await this.checkHealth(camera);
+          }
+          camera.status = ok ? 'live' : 'offline';
           camera.lastVerified = new Date().toISOString();
         } catch {
           camera.status = 'offline';
