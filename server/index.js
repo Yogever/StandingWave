@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { config, ROOT_DIR, RECORDINGS_DIR, INTERNAL_TOKEN, ensureDataDirs } from './config.js';
 import {
   isAuthenticated,
@@ -113,9 +114,19 @@ app.get('/hls/:id/:file', async (req, res) => {
     if (type) res.setHeader('Content-Type', type);
     res.setHeader('Cache-Control', 'no-store');
     if (!upstream.body) return res.end();
-    Readable.fromWeb(upstream.body).pipe(res);
+    // pipeline() (unlike raw .pipe()) surfaces upstream stream errors here
+    // instead of as an unhandled 'error' event — e.g. when the camera stalls
+    // or drops mid-segment and the AbortSignal.timeout fires after headers
+    // already arrived. Without this, that error used to crash the whole
+    // process, killing every other active recording along with it.
+    await pipeline(Readable.fromWeb(upstream.body), res);
   } catch (err) {
-    res.status(502).json({ error: err.message });
+    if (res.headersSent) {
+      console.warn(`[hls-proxy] stream to ${req.params.id}/${req.params.file} broke mid-response: ${err.message}`);
+      res.destroy();
+    } else {
+      res.status(502).json({ error: err.message });
+    }
   }
 });
 
