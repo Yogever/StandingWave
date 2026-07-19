@@ -41,6 +41,48 @@ function deleteRecording(file) {
   console.log(`[retention] deleted ${file.name}`);
 }
 
+// Finished recordings for the library UI: one entry per .json sidecar, newest
+// first. In-progress .part/.ts captures have no sidecar yet, so they're skipped.
+export function listRecordings() {
+  const out = [];
+  for (const f of fs.readdirSync(RECORDINGS_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(RECORDINGS_DIR, f), 'utf8'));
+      const stat = fs.statSync(path.join(RECORDINGS_DIR, meta.file)); // media still present?
+      out.push({
+        file: meta.file,
+        camera: meta.camera,
+        city: meta.city,
+        source: meta.source,
+        sourcePage: meta.sourcePage,
+        startedAt: meta.startedAt,
+        endedAt: meta.endedAt,
+        durationSec: meta.durationSec,
+        sizeBytes: meta.sizeBytes ?? stat.size,
+      });
+    } catch {
+      /* sidecar without its media, or malformed — skip */
+    }
+  }
+  out.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+  return out;
+}
+
+// Delete one recording by filename (from the library UI). basename() strips any
+// path components so a crafted name can't escape RECORDINGS_DIR. Returns whether
+// the media file existed.
+export function deleteRecordingByName(name) {
+  const safe = path.basename(name);
+  if (!/\.(mp4|ts)$/.test(safe)) throw new Error('not a recording file');
+  const full = path.join(RECORDINGS_DIR, safe);
+  const existed = fs.existsSync(full);
+  fs.rmSync(full, { force: true });
+  fs.rmSync(`${full}.json`, { force: true });
+  if (existed) console.log(`[library] deleted ${safe}`);
+  return existed;
+}
+
 export function retentionSweep() {
   const now = Date.now();
   const maxAgeMs = config.retentionDays * 24 * 60 * 60 * 1000;

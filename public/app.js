@@ -223,6 +223,7 @@ async function toggleRecording() {
         body: JSON.stringify({ cameraId: cam.id }),
       });
       showSavedToast(file);
+      if ($('autoDownload').checked) triggerDownload(file.url, file.file);
     } else {
       $('recordBtnLabel').textContent = 'Starting…';
       await api('/api/record/start', {
@@ -255,6 +256,15 @@ function fmtDuration(sec) {
   return `${sec}s`;
 }
 
+function triggerDownload(url, filename) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 function showSavedToast(file) {
   showToast({
     title: `Saved · ${file.camera}, ${file.city}`,
@@ -284,6 +294,87 @@ function showToast({ title, meta, link, error }) {
   el.querySelector('.toast-dismiss').addEventListener('click', () => el.remove());
   toasts.appendChild(el);
   if (error) setTimeout(() => el.remove(), 15000);
+}
+
+/* ── Recordings library ── */
+
+function openLibrary() {
+  $('libraryModal').classList.remove('hidden');
+  refreshLibrary();
+}
+
+function closeLibrary() {
+  $('libraryModal').classList.add('hidden');
+  const p = $('libraryPlayer');
+  p.pause();
+  p.removeAttribute('src');
+  p.load();
+  p.classList.add('hidden');
+}
+
+async function refreshLibrary() {
+  const list = $('libraryList');
+  list.innerHTML = '<div class="lib-empty">Loading…</div>';
+  let recs;
+  try {
+    recs = await api('/api/recordings');
+  } catch (err) {
+    list.innerHTML = '';
+    showToast({ title: 'Could not load recordings', meta: err.message, error: true });
+    return;
+  }
+  if (!recs.length) {
+    list.innerHTML = '<div class="lib-empty">No recordings yet</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const r of recs) {
+    const row = document.createElement('div');
+    row.className = 'lib-row';
+    row.innerHTML = `
+      <div class="lib-info">
+        <div class="lib-name"></div>
+        <div class="lib-meta"></div>
+      </div>
+      <div class="lib-actions">
+        <button class="lib-btn" data-act="play">Play</button>
+        <a class="lib-btn" data-act="download" download>Download ↓</a>
+        <button class="lib-btn danger" data-act="delete">Delete</button>
+      </div>`;
+    row.querySelector('.lib-name').textContent = `${r.camera} · ${r.city}`;
+    const date = new Date(r.startedAt).toLocaleString();
+    row.querySelector('.lib-meta').textContent =
+      `${date} · ${fmtDuration(r.durationSec)} · ${fmtBytes(r.sizeBytes)}`;
+    row.querySelector('[data-act="download"]').href =
+      `/recordings/${encodeURIComponent(r.file)}`;
+    row.querySelector('[data-act="play"]').addEventListener('click', () => playInLibrary(r));
+    row.querySelector('[data-act="delete"]').addEventListener('click', () =>
+      deleteRecording(r, row),
+    );
+    list.appendChild(row);
+  }
+}
+
+function playInLibrary(r) {
+  const p = $('libraryPlayer');
+  p.src = `/media/${encodeURIComponent(r.file)}`;
+  p.classList.remove('hidden');
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  p.play().catch(() => {});
+}
+
+async function deleteRecording(r, row) {
+  if (!confirm(`Delete "${r.file}"?\nThis permanently removes the recording.`)) return;
+  try {
+    await api(`/api/recordings/${encodeURIComponent(r.file)}`, { method: 'DELETE' });
+    row.remove();
+    if (!$('libraryList').children.length) {
+      $('libraryList').innerHTML = '<div class="lib-empty">No recordings yet</div>';
+    }
+    await refreshStorage().catch(() => {});
+  } catch (err) {
+    showToast({ title: 'Delete failed', meta: err.message, error: true });
+  }
 }
 
 /* ── Polling ── */
@@ -334,6 +425,21 @@ $('recheckBtn').addEventListener('click', async () => {
 $('logoutBtn').addEventListener('click', async () => {
   await api('/api/logout', { method: 'POST' }).catch(() => {});
   location.href = '/login';
+});
+
+const AUTO_DL_KEY = 'sw.autoDownload';
+$('autoDownload').checked = localStorage.getItem(AUTO_DL_KEY) === '1';
+$('autoDownload').addEventListener('change', (e) => {
+  localStorage.setItem(AUTO_DL_KEY, e.target.checked ? '1' : '0');
+});
+
+$('libraryBtn').addEventListener('click', openLibrary);
+$('libraryClose').addEventListener('click', closeLibrary);
+$('libraryModal').addEventListener('click', (e) => {
+  if (e.target === $('libraryModal')) closeLibrary();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('libraryModal').classList.contains('hidden')) closeLibrary();
 });
 
 async function init() {
