@@ -13,7 +13,12 @@ import {
 } from './auth.js';
 import { CameraStore } from './cameras.js';
 import { Recorder } from './recorder.js';
-import { storageInfo, startRetentionLoop } from './storage.js';
+import {
+  storageInfo,
+  startRetentionLoop,
+  listRecordings,
+  deleteRecordingByName,
+} from './storage.js';
 
 if (!config.appPassword) {
   console.error('APP_PASSWORD is required. Set it in the environment or .env file.');
@@ -26,7 +31,6 @@ const cameraStore = new CameraStore();
 cameraStore.load();
 
 const recorder = new Recorder(cameraStore);
-await recorder.recoverOrphans();
 
 cameraStore.startHealthLoop();
 startRetentionLoop();
@@ -186,8 +190,23 @@ app.get('/api/storage', (_req, res) => {
   res.json(storageInfo());
 });
 
-// Direct download links (given out via the post-stop toast). Range requests
-// supported so the files also stream in a <video> tag or VLC.
+// ── Recordings library ──
+app.get('/api/recordings', (_req, res) => {
+  res.json(listRecordings());
+});
+
+app.delete('/api/recordings/:file', (req, res) => {
+  try {
+    const existed = deleteRecordingByName(req.params.file);
+    if (!existed) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Direct download links (post-stop toast + library "Download" button). Range
+// requests supported so the files also stream in a <video> tag or VLC.
 app.use(
   '/recordings',
   express.static(RECORDINGS_DIR, {
@@ -202,9 +221,19 @@ app.use(
   }),
 );
 
+// Same files served inline (no attachment header) so the library "Play" button
+// can stream them in a <video> element instead of triggering a download.
+app.use('/media', express.static(RECORDINGS_DIR));
+
 app.listen(config.port, () => {
   console.log(`StandingWave listening on http://localhost:${config.port}`);
   console.log(
     `  recordings: ${RECORDINGS_DIR}\n  retention: ${config.retentionDays} days / ${config.storageCapGb} GB cap\n  max recording length: ${config.recordMaxHours}h`,
+  );
+  // Salvage recordings orphaned by a previous crash/restart in the background.
+  // Remuxing a multi-GB leftover can take minutes; running it after listen()
+  // (instead of awaiting before) keeps the server reachable during recovery.
+  recorder.recoverOrphans().catch((err) =>
+    console.error('[recorder] orphan recovery failed:', err.message),
   );
 });

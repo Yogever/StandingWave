@@ -61,6 +61,7 @@
       </div>
       <div class="topbar-right">
         <span class="feed-type">HLS · M3U8</span>
+        <button class="top-action" id="libraryBtn" title="Browse saved recordings">▤ RECORDINGS</button>
         <button class="top-action" id="recheckBtn" title="Re-resolve the stream URL from its source">↻ RECHECK</button>
         <button class="top-action" id="logoutBtn">LOGOUT</button>
       </div>
@@ -86,11 +87,26 @@
         <div class="timer" id="timer">00:00:00</div>
         <div class="timer-sub" id="timerSub">idle · server-side · max 4h</div>
       </div>
+      <label class="auto-dl" title="When a recording stops, download it automatically">
+        <input type="checkbox" id="autoDownload">
+        <span>Auto-download on stop</span>
+      </label>
     </div>
   </main>
 </div>
 
 <div class="toasts" id="toasts"></div>
+
+<div class="modal-backdrop hidden" id="libraryModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Recordings</span>
+      <button class="modal-close" id="libraryClose" title="Close">✕</button>
+    </div>
+    <video class="modal-player hidden" id="libraryPlayer" controls playsinline></video>
+    <div class="modal-body" id="libraryList"></div>
+  </div>
+</div>
 
 <script src="/vendor/hls.min.js"></script>
 <script src="/app.js"></script>
